@@ -68,7 +68,7 @@ jobs:
           cp "target/${{ matrix.target }}/release/${{ matrix.binary }}" "$staging/"
 
           if [ "${{ matrix.archive }}" = "zip" ]; then
-            (cd "$staging" && 7z a "../../../${{ matrix.package }}" .)
+            (cd "$staging" && 7z a "../../${{ matrix.package }}" .)
           else
             chmod +x "$staging/${{ matrix.binary }}"
             tar -czf "${{ matrix.package }}" -C "$staging" .
