@@ -1,0 +1,32 @@
+runtime:
+  mode: client
+  log_level: info
+
+client:
+  transport_type: ws
+  server_addr: 127.0.0.1:12345
+  ca_cert_path: certs/ca-cert.pem
+  token: changeme
+
+server:
+  transport_type: ws
+  bind_addr: 0.0.0.0:12345
+  tun_name: tun0
+  tun_addr: 10.0.0.1
+  tun_netmask: 255.255.255.0
+  mtu: 1500
+  cert_path: certs/server-cert.pem
+  key_path: certs/server-key.pem
+  token: changeme
+
+rules:
+  - DST_ADDR,10.0.0.0/8,proxy
+  - DST_PORT,22,reject
+  - MATCH,direct
+
+transparent_proxy:
+  interface: ""
+  smoltcp_addr: 10.0.0.2
+  smoltcp_netmask: 255.255.255.0
+  smoltcp_gateway: 10.0.0.1
+  upstream_server: null

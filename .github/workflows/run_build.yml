@@ -66,6 +66,7 @@ jobs:
           staging="staging/${{ matrix.artifact }}"
           mkdir -p "$staging"
           cp "target/${{ matrix.target }}/release/${{ matrix.binary }}" "$staging/"
+          cp -r certs config "$staging/"
 
           if [ "${{ matrix.archive }}" = "zip" ]; then
             (cd "$staging" && 7z a "../../${{ matrix.package }}" .)

@@ -27,3 +27,4 @@ client_config.json
 specs/*
 target_yaml_check/*
 config/*
+!config/easynet.yaml
