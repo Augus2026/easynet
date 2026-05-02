@@ -1,0 +1,252 @@
+use super::action::RuleAction;
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Protocol {
+    Tcp,
+    Udp,
+    Icmp,
+    Other(u8),
+}
+
+impl From<u8> for Protocol {
+    fn from(value: u8) -> Self {
+        match value {
+            6 => Protocol::Tcp,
+            17 => Protocol::Udp,
+            1 => Protocol::Icmp,
+            _ => Protocol::Other(value),
+        }
+    }
+}
+
+impl Protocol {
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s.to_lowercase().as_str() {
+            "tcp" => Some(Protocol::Tcp),
+            "udp" => Some(Protocol::Udp),
+            "icmp" => Some(Protocol::Icmp),
+            _ => None,
+        }
+    }
+}
+
+impl Default for Protocol {
+    fn default() -> Self {
+        Protocol::Other(0)
+    }
+}
+
+impl std::fmt::Display for Protocol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Protocol::Tcp => write!(f, "tcp"),
+            Protocol::Udp => write!(f, "udp"),
+            Protocol::Icmp => write!(f, "icmp"),
+            Protocol::Other(n) => write!(f, "other({})", n),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Rule {
+    pub name: String,
+
+    pub id: u32,
+
+    pub priority: u32,
+
+    pub src_ip_cidr: Option<String>,
+
+    pub dst_ip_cidr: Option<String>,
+
+    pub src_port: Option<String>,
+
+    pub dst_port: Option<String>,
+
+    pub proto: Option<String>,
+
+    pub match_all: bool,
+
+    pub action: RuleAction,
+
+    pub enabled: bool,
+}
+
+impl Rule {
+    pub fn new(name: impl Into<String>, action: RuleAction) -> Self {
+        Self {
+            name: name.into(),
+            id: 0,
+            priority: 0,
+            src_ip_cidr: None,
+            dst_ip_cidr: None,
+            src_port: None,
+            dst_port: None,
+            proto: None,
+            match_all: false,
+            action,
+            enabled: true,
+        }
+    }
+
+    pub fn parse_compact(index: usize, value: &str) -> Result<Self, String> {
+        let parts: Vec<&str> = value.split(',').map(str::trim).collect();
+        if parts.is_empty() || parts[0].is_empty() {
+            return Err("rule is empty".to_string());
+        }
+
+        let field = parts[0].to_ascii_uppercase();
+        let mut rule = match field.as_str() {
+            "MATCH" => {
+                if parts.len() != 2 {
+                    return Err("MATCH rule format must be MATCH,action".to_string());
+                }
+                let action = parse_action(parts[1])?;
+                let mut rule = Rule::new(format!("rule-{}-match", index + 1), action);
+                rule.match_all = true;
+                rule
+            }
+            "SRC-IP-CIDR" | "SRC_ADDR" | "SRC-IP" => {
+                let (rule_value, action) = parse_field_rule_parts(&parts, &field)?;
+                let mut rule = Rule::new(format!("rule-{}-src-ip-cidr", index + 1), action);
+                rule.src_ip_cidr = Some(rule_value);
+                rule
+            }
+            "DST-IP-CIDR" | "DST_ADDR" | "DST-IP" => {
+                let (rule_value, action) = parse_field_rule_parts(&parts, &field)?;
+                let mut rule = Rule::new(format!("rule-{}-dst-ip-cidr", index + 1), action);
+                rule.dst_ip_cidr = Some(rule_value);
+                rule
+            }
+            "SRC-PORT" | "SRC_PORT" => {
+                let (rule_value, action) = parse_field_rule_parts(&parts, &field)?;
+                let mut rule = Rule::new(format!("rule-{}-src-port", index + 1), action);
+                rule.src_port = Some(rule_value);
+                rule
+            }
+            "DST-PORT" | "DST_PORT" => {
+                let (rule_value, action) = parse_field_rule_parts(&parts, &field)?;
+                let mut rule = Rule::new(format!("rule-{}-dst-port", index + 1), action);
+                rule.dst_port = Some(rule_value);
+                rule
+            }
+            "PROTO" => {
+                let (rule_value, action) = parse_field_rule_parts(&parts, &field)?;
+                let mut rule = Rule::new(format!("rule-{}-proto", index + 1), action);
+                rule.proto = Some(rule_value);
+                rule
+            }
+            _ => return Err(format!("unknown rule field '{}'", parts[0])),
+        };
+
+        rule.id = (index + 1) as u32;
+        rule.priority = u32::MAX - index as u32;
+        Ok(rule)
+    }
+
+    pub fn has_conditions(&self) -> bool {
+        self.match_all
+            || self.src_ip_cidr.is_some()
+            || self.dst_ip_cidr.is_some()
+            || self.src_port.is_some()
+            || self.dst_port.is_some()
+            || self.proto.is_some()
+    }
+
+    pub fn with_id(mut self, id: u32) -> Self {
+        self.id = id;
+        self
+    }
+
+    pub fn with_priority(mut self, priority: u32) -> Self {
+        self.priority = priority;
+        self
+    }
+
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+}
+
+impl<'de> Deserialize<'de> for Rule {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct RuleVisitor;
+
+        impl<'de> de::Visitor<'de> for RuleVisitor {
+            type Value = Rule;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("a compact rule string")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Rule::parse_compact(0, value).map_err(E::custom)
+            }
+        }
+
+        deserializer.deserialize_str(RuleVisitor)
+    }
+}
+
+impl std::fmt::Display for Rule {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.match_all {
+            return write!(f, "MATCH,{}", self.action);
+        }
+        if let Some(value) = &self.src_ip_cidr {
+            return write!(f, "SRC-IP-CIDR,{},{}", value, self.action);
+        }
+        if let Some(value) = &self.dst_ip_cidr {
+            return write!(f, "DST-IP-CIDR,{},{}", value, self.action);
+        }
+        if let Some(value) = &self.src_port {
+            return write!(f, "SRC-PORT,{},{}", value, self.action);
+        }
+        if let Some(value) = &self.dst_port {
+            return write!(f, "DST-PORT,{},{}", value, self.action);
+        }
+        if let Some(value) = &self.proto {
+            return write!(f, "PROTO,{},{}", value, self.action);
+        }
+        write!(f, "MATCH,{}", self.action)
+    }
+}
+
+impl Serialize for Rule {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+fn parse_field_rule_parts(parts: &[&str], field: &str) -> Result<(String, RuleAction), String> {
+    if parts.len() != 3 {
+        return Err(format!(
+            "{} rule format must be {},value,action",
+            field, field
+        ));
+    }
+    if parts[1].is_empty() {
+        return Err(format!("{} rule value cannot be empty", field));
+    }
+    Ok((parts[1].to_string(), parse_action(parts[2])?))
+}
+
+fn parse_action(value: &str) -> Result<RuleAction, String> {
+    match value.to_ascii_lowercase().as_str() {
+        "direct" => Ok(RuleAction::Direct),
+        "proxy" => Ok(RuleAction::Proxy),
+        "reject" | "drop" => Ok(RuleAction::Reject),
+        _ => Err(format!("unknown rule action '{}'", value)),
+    }
+}

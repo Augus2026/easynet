@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package easynet;
+
+message TunConfig {
+  string name = 1;
+  string address = 2;
+  string netmask = 3;
+  repeated string dns = 4;
+  uint32 mtu = 5;
+}
+
+message Handshake {
+  string token = 1;
+  string session_id = 2;
+  TunConfig tun_config = 3;
+}
+
+message Data {
+  bytes payload = 1;
+}
+
+message KeepAlive {
+  int64 timestamp = 1;
+}
+
+message Disconnect {
+  string reason = 1;
+}
+
+message Message {
+  oneof msg {
+    Handshake handshake = 1;
+    Data data = 2;
+    KeepAlive keepalive = 3;
+    Disconnect disconnect = 4;
+  }
+}
