@@ -69,41 +69,7 @@ jobs:
           cp -r certs config "$staging/"
 
           if [ "${{ runner.os }}" = "Windows" ]; then
-            python - <<'PY'
-import json
-import shutil
-import subprocess
-from pathlib import Path
-
-target = "${{ matrix.target }}"
-staging = Path("staging/${{ matrix.artifact }}")
-arch_map = {
-    "x86_64-pc-windows-msvc": "amd64",
-    "i686-pc-windows-msvc": "x86",
-    "aarch64-pc-windows-msvc": "arm64",
-    "armv7-pc-windows-msvc": "arm",
-}
-
-arch = arch_map.get(target)
-if arch is None:
-    raise SystemExit(f"Unsupported Windows target for Wintun packaging: {target}")
-
-metadata = json.loads(
-    subprocess.check_output(
-        ["cargo", "metadata", "--format-version", "1", "--locked"],
-        text=True,
-    )
-)
-package = next(
-    package for package in metadata["packages"] if package["name"] == "wintun-bindings"
-)
-crate_dir = Path(package["manifest_path"]).parent
-wintun_dll = crate_dir / "wintun" / "bin" / arch / "wintun.dll"
-if not wintun_dll.exists():
-    raise SystemExit(f"Missing Wintun DLL: {wintun_dll}")
-
-shutil.copy2(wintun_dll, staging / "wintun.dll")
-PY
+            cp "target/${{ matrix.target }}/release/wintun.dll" "$staging/"
           fi
 
           if [ "${{ matrix.archive }}" = "zip" ]; then
