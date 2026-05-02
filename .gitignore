@@ -27,4 +27,3 @@ client_config.json
 specs/*
 target_yaml_check/*
 config/*
-Cargo.lock

@@ -247,7 +247,7 @@ impl TransportTrait for WsTransport {
     {
         Box::pin(async move {
             let bytes = msg.encode_to_vec();
-            let ws_msg = WsMessage::Binary(bytes);
+            let ws_msg = WsMessage::Binary(bytes.into());
             self.ws_stream
                 .send(ws_msg)
                 .await
