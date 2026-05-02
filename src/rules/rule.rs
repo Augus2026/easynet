@@ -66,6 +66,14 @@ pub struct Rule {
 
     pub proto: Option<String>,
 
+    pub domain: Option<String>,
+
+    pub domain_suffix: Option<String>,
+
+    pub domain_keyword: Option<String>,
+
+    pub geoip: Option<String>,
+
     pub match_all: bool,
 
     pub action: RuleAction,
@@ -84,6 +92,10 @@ impl Rule {
             src_port: None,
             dst_port: None,
             proto: None,
+            domain: None,
+            domain_suffix: None,
+            domain_keyword: None,
+            geoip: None,
             match_all: false,
             action,
             enabled: true,
@@ -137,6 +149,30 @@ impl Rule {
                 rule.proto = Some(rule_value);
                 rule
             }
+            "DOMAIN" => {
+                let (rule_value, action) = parse_domain_rule_parts(&parts, &field)?;
+                let mut rule = Rule::new(format!("rule-{}-domain", index + 1), action);
+                rule.domain = Some(rule_value);
+                rule
+            }
+            "DOMAIN-SUFFIX" => {
+                let (rule_value, action) = parse_domain_rule_parts(&parts, &field)?;
+                let mut rule = Rule::new(format!("rule-{}-domain-suffix", index + 1), action);
+                rule.domain_suffix = Some(rule_value);
+                rule
+            }
+            "DOMAIN-KEYWORD" => {
+                let (rule_value, action) = parse_domain_rule_parts(&parts, &field)?;
+                let mut rule = Rule::new(format!("rule-{}-domain-keyword", index + 1), action);
+                rule.domain_keyword = Some(rule_value);
+                rule
+            }
+            "GEOIP" => {
+                let (rule_value, action) = parse_geoip_rule_parts(&parts, &field)?;
+                let mut rule = Rule::new(format!("rule-{}-geoip", index + 1), action);
+                rule.geoip = Some(rule_value);
+                rule
+            }
             _ => return Err(format!("unknown rule field '{}'", parts[0])),
         };
 
@@ -152,6 +188,10 @@ impl Rule {
             || self.src_port.is_some()
             || self.dst_port.is_some()
             || self.proto.is_some()
+            || self.domain.is_some()
+            || self.domain_suffix.is_some()
+            || self.domain_keyword.is_some()
+            || self.geoip.is_some()
     }
 
     pub fn with_id(mut self, id: u32) -> Self {
@@ -216,6 +256,18 @@ impl std::fmt::Display for Rule {
         if let Some(value) = &self.proto {
             return write!(f, "PROTO,{},{}", value, self.action);
         }
+        if let Some(value) = &self.domain {
+            return write!(f, "DOMAIN,{},{}", value, self.action);
+        }
+        if let Some(value) = &self.domain_suffix {
+            return write!(f, "DOMAIN-SUFFIX,{},{}", value, self.action);
+        }
+        if let Some(value) = &self.domain_keyword {
+            return write!(f, "DOMAIN-KEYWORD,{},{}", value, self.action);
+        }
+        if let Some(value) = &self.geoip {
+            return write!(f, "GEOIP,{},{}", value, self.action);
+        }
         write!(f, "MATCH,{}", self.action)
     }
 }
@@ -240,6 +292,44 @@ fn parse_field_rule_parts(parts: &[&str], field: &str) -> Result<(String, RuleAc
         return Err(format!("{} rule value cannot be empty", field));
     }
     Ok((parts[1].to_string(), parse_action(parts[2])?))
+}
+
+fn parse_domain_rule_parts(parts: &[&str], field: &str) -> Result<(String, RuleAction), String> {
+    let (value, action) = parse_field_rule_parts(parts, field)?;
+    Ok((normalize_domain_rule_value(&value)?, action))
+}
+
+fn normalize_domain_rule_value(value: &str) -> Result<String, String> {
+    let value = value.trim().trim_end_matches('.').to_ascii_lowercase();
+    if value.is_empty() {
+        return Err("domain rule value cannot be empty".to_string());
+    }
+    if value
+        .chars()
+        .any(|ch| ch.is_whitespace() || matches!(ch, '/' | ','))
+    {
+        return Err(format!("invalid domain rule value '{}'", value));
+    }
+    Ok(value)
+}
+
+fn parse_geoip_rule_parts(parts: &[&str], field: &str) -> Result<(String, RuleAction), String> {
+    let (value, action) = parse_field_rule_parts(parts, field)?;
+    Ok((normalize_geoip_rule_value(&value)?, action))
+}
+
+fn normalize_geoip_rule_value(value: &str) -> Result<String, String> {
+    let value = value.trim().to_ascii_uppercase();
+    if value.is_empty() {
+        return Err("GEOIP rule value cannot be empty".to_string());
+    }
+    if value
+        .chars()
+        .any(|ch| ch.is_whitespace() || matches!(ch, '/' | ','))
+    {
+        return Err(format!("invalid GEOIP rule value '{}'", value));
+    }
+    Ok(value)
 }
 
 fn parse_action(value: &str) -> Result<RuleAction, String> {

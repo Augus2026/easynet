@@ -12,6 +12,8 @@ pub struct PacketContext {
     pub dst_port: Option<u16>,
 
     pub protocol: Protocol,
+
+    pub domains: Vec<String>,
 }
 
 impl PacketContext {
@@ -28,7 +30,13 @@ impl PacketContext {
             src_port,
             dst_port,
             protocol,
+            domains: Vec::new(),
         }
+    }
+
+    pub fn with_domains(mut self, domains: Vec<String>) -> Self {
+        self.domains = domains;
+        self
     }
 
     pub fn from_ip_packet(data: &[u8]) -> Option<Self> {

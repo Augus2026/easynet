@@ -1,4 +1,5 @@
 use super::context::PacketContext;
+use super::geoip::GeoIpMatcher;
 use super::rule::{Protocol, Rule};
 use crate::config::parse_port_range;
 use ipnetwork::Ipv4Network;
@@ -7,7 +8,7 @@ use std::net::Ipv4Addr;
 pub struct Matcher;
 
 impl Matcher {
-    pub fn matches(rule: &Rule, packet: &PacketContext) -> bool {
+    pub fn matches(rule: &Rule, packet: &PacketContext, geoip: &GeoIpMatcher) -> bool {
         if !rule.enabled {
             return false;
         }
@@ -42,6 +43,30 @@ impl Matcher {
             }
         }
 
+        if let Some(ref domain) = rule.domain {
+            if !Self::matches_domain(domain, &packet.domains) {
+                return false;
+            }
+        }
+
+        if let Some(ref suffix) = rule.domain_suffix {
+            if !Self::matches_domain_suffix(suffix, &packet.domains) {
+                return false;
+            }
+        }
+
+        if let Some(ref keyword) = rule.domain_keyword {
+            if !Self::matches_domain_keyword(keyword, &packet.domains) {
+                return false;
+            }
+        }
+
+        if let Some(ref geoip_code) = rule.geoip {
+            if !geoip.matches(packet.dst_ip, geoip_code) {
+                return false;
+            }
+        }
+
         true
     }
 
@@ -68,5 +93,58 @@ impl Matcher {
             Some(proto) => proto == packet_proto,
             None => false,
         }
+    }
+
+    pub fn matches_domain(domain: &str, packet_domains: &[String]) -> bool {
+        packet_domains.iter().any(|value| value == domain)
+    }
+
+    pub fn matches_domain_suffix(suffix: &str, packet_domains: &[String]) -> bool {
+        packet_domains
+            .iter()
+            .any(|value| value == suffix || value.ends_with(&format!(".{suffix}")))
+    }
+
+    pub fn matches_domain_keyword(keyword: &str, packet_domains: &[String]) -> bool {
+        packet_domains.iter().any(|value| value.contains(keyword))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn matches_exact_domain_only() {
+        let domains = vec!["example.com".to_string(), "www.example.org".to_string()];
+
+        assert!(Matcher::matches_domain("example.com", &domains));
+        assert!(!Matcher::matches_domain("www.example.com", &domains));
+    }
+
+    #[test]
+    fn matches_domain_suffix_with_root_and_subdomain() {
+        let domains = vec!["example.com".to_string(), "www.example.com".to_string()];
+
+        assert!(Matcher::matches_domain_suffix("example.com", &domains));
+        assert!(Matcher::matches_domain_suffix("www.example.com", &domains));
+        assert!(!Matcher::matches_domain_suffix("ample.com", &domains));
+    }
+
+    #[test]
+    fn matches_domain_keyword() {
+        let domains = vec!["www.youtube.com".to_string()];
+
+        assert!(Matcher::matches_domain_keyword("youtube", &domains));
+        assert!(!Matcher::matches_domain_keyword("google", &domains));
+    }
+
+    #[test]
+    fn domain_rules_do_not_match_without_domains() {
+        let domains = Vec::new();
+
+        assert!(!Matcher::matches_domain("example.com", &domains));
+        assert!(!Matcher::matches_domain_suffix("example.com", &domains));
+        assert!(!Matcher::matches_domain_keyword("example", &domains));
     }
 }

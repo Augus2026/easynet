@@ -46,6 +46,7 @@ impl From<serde_yaml::Error> for ConfigError {
 pub struct RulesConfig {
     pub default_action: RuleAction,
     pub rules: Vec<Rule>,
+    pub geoip_path: Option<String>,
 }
 
 impl Default for RulesConfig {
@@ -53,6 +54,7 @@ impl Default for RulesConfig {
         Self {
             default_action: RuleAction::Reject,
             rules: Vec::new(),
+            geoip_path: None,
         }
     }
 }
@@ -122,6 +124,20 @@ impl RulesConfig {
                     )));
                 }
             }
+
+            for (field, value) in [
+                ("DOMAIN", rule.domain.as_ref()),
+                ("DOMAIN-SUFFIX", rule.domain_suffix.as_ref()),
+                ("DOMAIN-KEYWORD", rule.domain_keyword.as_ref()),
+            ] {
+                if let Some(value) = value {
+                    validate_domain_rule_value(&rule.name, field, value)?;
+                }
+            }
+
+            if let Some(value) = &rule.geoip {
+                validate_geoip_rule_value(&rule.name, value)?;
+            }
         }
 
         Ok(())
@@ -137,6 +153,48 @@ impl RulesConfig {
         }
         self
     }
+}
+
+fn validate_geoip_rule_value(rule_name: &str, value: &str) -> Result<(), ConfigError> {
+    if value.is_empty() {
+        return Err(ConfigError::ValidationError(format!(
+            "rule '{}' has an empty GEOIP value",
+            rule_name
+        )));
+    }
+    if value
+        .chars()
+        .any(|ch| ch.is_whitespace() || matches!(ch, '/' | ','))
+    {
+        return Err(ConfigError::ValidationError(format!(
+            "rule '{}' has an invalid GEOIP value: {}",
+            rule_name, value
+        )));
+    }
+    Ok(())
+}
+
+fn validate_domain_rule_value(
+    rule_name: &str,
+    field: &str,
+    value: &str,
+) -> Result<(), ConfigError> {
+    if value.is_empty() {
+        return Err(ConfigError::ValidationError(format!(
+            "rule '{}' has an empty {} value",
+            rule_name, field
+        )));
+    }
+    if value
+        .chars()
+        .any(|ch| ch.is_whitespace() || matches!(ch, '/' | ','))
+    {
+        return Err(ConfigError::ValidationError(format!(
+            "rule '{}' has an invalid {} value: {}",
+            rule_name, field, value
+        )));
+    }
+    Ok(())
 }
 
 impl<'de> Deserialize<'de> for RulesConfig {
@@ -167,6 +225,7 @@ impl<'de> Deserialize<'de> for RulesConfig {
                 Ok(RulesConfig {
                     default_action: RuleAction::Reject,
                     rules,
+                    geoip_path: None,
                 })
             }
         }
@@ -182,6 +241,18 @@ impl Serialize for RulesConfig {
     {
         let rules: Vec<String> = self.rules.iter().map(ToString::to_string).collect();
         rules.serialize(serializer)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuleSetConfig {
+    #[serde(default)]
+    pub geoip_path: Option<String>,
+}
+
+impl Default for RuleSetConfig {
+    fn default() -> Self {
+        Self { geoip_path: None }
     }
 }
 
@@ -317,6 +388,8 @@ pub struct AppConfig {
     #[serde(default = "default_rules")]
     pub rules: RulesConfig,
     #[serde(default)]
+    pub rule_sets: RuleSetConfig,
+    #[serde(default)]
     pub transparent_proxy: TransparentProxyConfig,
 }
 
@@ -324,6 +397,7 @@ fn default_rules() -> RulesConfig {
     RulesConfig {
         default_action: RuleAction::Reject,
         rules: Vec::new(),
+        geoip_path: None,
     }
 }
 
@@ -334,6 +408,7 @@ impl Default for AppConfig {
             client: ClientConfig::default(),
             server: ServerConfig::default(),
             rules: default_rules(),
+            rule_sets: RuleSetConfig::default(),
             transparent_proxy: TransparentProxyConfig::default(),
         }
     }
@@ -364,11 +439,18 @@ impl AppConfig {
     pub fn load() -> anyhow::Result<Self> {
         let mut config = Self::load_from_file(APP_CONFIG_PATH)?;
         config.client.session_id = load_client_state()?.session_id;
+        config.apply_rule_set_paths();
         Ok(config)
     }
 
     pub fn save(&self) -> anyhow::Result<()> {
         self.save_to_file(APP_CONFIG_PATH)
+    }
+}
+
+impl AppConfig {
+    fn apply_rule_set_paths(&mut self) {
+        self.rules.geoip_path = self.rule_sets.geoip_path.clone();
     }
 }
 
@@ -390,4 +472,29 @@ pub fn save_client_state(state: &ClientState) -> anyhow::Result<()> {
     let content = serde_yaml::to_string(state)?;
     std::fs::write(CLIENT_STATE_PATH, content)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn app_config_applies_rule_set_geoip_path() {
+        let mut config: AppConfig = serde_yaml::from_str(
+            r#"
+rules:
+  - GEOIP,CN,direct
+rule_sets:
+  geoip_path: rules/geoip/GeoLite2-Country.mmdb
+"#,
+        )
+        .unwrap();
+
+        config.apply_rule_set_paths();
+
+        assert_eq!(
+            config.rules.geoip_path.as_deref(),
+            Some("rules/geoip/GeoLite2-Country.mmdb")
+        );
+    }
 }

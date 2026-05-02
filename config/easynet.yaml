@@ -4,9 +4,9 @@ runtime:
 
 client:
   transport_type: ws
-  server_addr: 127.0.0.1:12345
+  server_addr: 192.168.6.111:12345
   ca_cert_path: certs/ca-cert.pem
-  token: changeme
+  token: admin
 
 server:
   transport_type: ws
@@ -17,15 +17,39 @@ server:
   mtu: 1500
   cert_path: certs/server-cert.pem
   key_path: certs/server-key.pem
-  token: changeme
+  token: admin
 
 rules:
+  - DOMAIN-SUFFIX,google.com,proxy
+  - DOMAIN-SUFFIX,gstatic.com,proxy
+  - DOMAIN-SUFFIX,googleapis.com,proxy
+  - DOMAIN-SUFFIX,youtube.com,proxy
+  - DOMAIN-SUFFIX,ytimg.com,proxy
+  - DOMAIN-SUFFIX,github.com,proxy
+  - DOMAIN-SUFFIX,githubusercontent.com,proxy
+  - DOMAIN-SUFFIX,githubassets.com,proxy
+  - DOMAIN-SUFFIX,openai.com,proxy
+  - DOMAIN-SUFFIX,chatgpt.com,proxy
+  - DOMAIN-SUFFIX,facebook.com,proxy
+  - DOMAIN-SUFFIX,instagram.com,proxy
+  - DOMAIN-SUFFIX,whatsapp.com,proxy
+  - DOMAIN-SUFFIX,telegram.org,proxy
+  - DOMAIN-SUFFIX,twitter.com,proxy
+  - DOMAIN-SUFFIX,x.com,proxy
+  - DOMAIN-SUFFIX,reddit.com,proxy
+  - DOMAIN-SUFFIX,netflix.com,proxy
+  - DOMAIN-SUFFIX,cloudflare.com,proxy
+  - DOMAIN-SUFFIX,cloudfront.net,proxy
+  - GEOIP,CN,direct
+  - GEOIP,PRIVATE,direct
   - DST_ADDR,10.0.0.0/8,proxy
-  - DST_PORT,22,reject
   - MATCH,direct
 
+rule_sets:
+  geoip_path: rules/geoip/GeoLite2-Country.mmdb
+
 transparent_proxy:
-  interface: ""
+  interface: "以太网"
   smoltcp_addr: 10.0.0.2
   smoltcp_netmask: 255.255.255.0
   smoltcp_gateway: 10.0.0.1

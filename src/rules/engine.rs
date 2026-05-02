@@ -5,12 +5,14 @@ use super::action::RuleAction;
 use super::config::{ConfigError, RulesConfig};
 use super::context::PacketContext;
 use super::decision::RuleDecision;
+use super::geoip::GeoIpMatcher;
 use super::matcher::Matcher;
 use super::rule::Rule;
 
 pub struct RulesEngine {
     default_action: RuleAction,
     rules: Vec<Rule>,
+    geoip: GeoIpMatcher,
 }
 
 impl RulesEngine {
@@ -30,12 +32,13 @@ impl RulesEngine {
         Ok(Self {
             default_action: config.default_action,
             rules,
+            geoip: GeoIpMatcher::load(config.geoip_path.as_deref()),
         })
     }
 
     pub fn match_packet(&self, packet: &PacketContext) -> RuleDecision {
         for rule in &self.rules {
-            if Matcher::matches(rule, packet) {
+            if Matcher::matches(rule, packet, &self.geoip) {
                 debug!(
                     "packet {} matched rule \"{}\" (id={}, priority={})",
                     packet, rule.name, rule.id, rule.priority
@@ -73,6 +76,12 @@ impl RulesEngine {
 
     pub fn default_action(&self) -> RuleAction {
         self.default_action
+    }
+
+    #[cfg(test)]
+    fn with_geoip(mut self, geoip: GeoIpMatcher) -> Self {
+        self.geoip = geoip;
+        self
     }
 }
 
@@ -143,5 +152,83 @@ mod tests {
         let decision = engine.match_packet(&packet);
         assert_eq!(decision.action, RuleAction::Proxy);
         assert_eq!(decision.rule_name.as_deref(), Some("rule-3-dst-port"));
+    }
+
+    #[test]
+    fn test_matches_domain_rule() {
+        let engine = RulesEngine::from_config(
+            RulesConfig::from_yaml(
+                r#"
+  - DOMAIN-SUFFIX,example.com,proxy
+  - MATCH,direct
+"#,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let packet = PacketContext::new(
+            "192.168.1.1".parse().unwrap(),
+            "93.184.216.34".parse().unwrap(),
+            Some(12345),
+            Some(443),
+            Protocol::Tcp,
+        )
+        .with_domains(vec!["www.example.com".to_string()]);
+
+        let decision = engine.match_packet(&packet);
+        assert_eq!(decision.action, RuleAction::Proxy);
+        assert_eq!(decision.rule_name.as_deref(), Some("rule-1-domain-suffix"));
+    }
+
+    #[test]
+    fn test_matches_geoip_private_rule() {
+        let engine = RulesEngine::from_config(
+            RulesConfig::from_yaml(
+                r#"
+  - GEOIP,PRIVATE,direct
+  - MATCH,proxy
+"#,
+            )
+            .unwrap(),
+        )
+        .unwrap()
+        .with_geoip(GeoIpMatcher::without_database());
+        let packet = PacketContext::new(
+            "192.168.1.1".parse().unwrap(),
+            "10.0.0.8".parse().unwrap(),
+            Some(12345),
+            Some(443),
+            Protocol::Tcp,
+        );
+
+        let decision = engine.match_packet(&packet);
+        assert_eq!(decision.action, RuleAction::Direct);
+        assert_eq!(decision.rule_name.as_deref(), Some("rule-1-geoip"));
+    }
+
+    #[test]
+    fn test_geoip_country_without_database_falls_through() {
+        let engine = RulesEngine::from_config(
+            RulesConfig::from_yaml(
+                r#"
+  - GEOIP,CN,direct
+  - MATCH,proxy
+"#,
+            )
+            .unwrap(),
+        )
+        .unwrap()
+        .with_geoip(GeoIpMatcher::without_database());
+        let packet = PacketContext::new(
+            "192.168.1.1".parse().unwrap(),
+            "8.8.8.8".parse().unwrap(),
+            Some(12345),
+            Some(443),
+            Protocol::Tcp,
+        );
+
+        let decision = engine.match_packet(&packet);
+        assert_eq!(decision.action, RuleAction::Proxy);
+        assert_eq!(decision.rule_name.as_deref(), Some("rule-2-match"));
     }
 }
