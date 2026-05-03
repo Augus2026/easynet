@@ -12,7 +12,7 @@ server:
   transport_type: ws
   bind_addr: 0.0.0.0:12345
   tun_name: tun0
-  tun_addr: 10.0.0.1
+  tun_addr: 10.0.0.0
   tun_netmask: 255.255.255.0
   mtu: 1400
   cert_path: certs/server-cert.pem
@@ -20,28 +20,6 @@ server:
   token: admin
 
 rules:
-  - DOMAIN-SUFFIX,google.com,proxy
-  - DOMAIN-SUFFIX,gstatic.com,proxy
-  - DOMAIN-SUFFIX,googleapis.com,proxy
-  - DOMAIN-SUFFIX,youtube.com,proxy
-  - DOMAIN-SUFFIX,ytimg.com,proxy
-  - DOMAIN-SUFFIX,github.com,proxy
-  - DOMAIN-SUFFIX,githubusercontent.com,proxy
-  - DOMAIN-SUFFIX,githubassets.com,proxy
-  - DOMAIN-SUFFIX,openai.com,proxy
-  - DOMAIN-SUFFIX,chatgpt.com,proxy
-  - DOMAIN-SUFFIX,facebook.com,proxy
-  - DOMAIN-SUFFIX,instagram.com,proxy
-  - DOMAIN-SUFFIX,whatsapp.com,proxy
-  - DOMAIN-SUFFIX,telegram.org,proxy
-  - DOMAIN-SUFFIX,twitter.com,proxy
-  - DOMAIN-SUFFIX,x.com,proxy
-  - DOMAIN-SUFFIX,reddit.com,proxy
-  - DOMAIN-SUFFIX,netflix.com,proxy
-  - DOMAIN-SUFFIX,cloudflare.com,proxy
-  - DOMAIN-SUFFIX,cloudfront.net,proxy
-  - GEOIP,CN,direct
-  - GEOIP,PRIVATE,direct
   - DST_ADDR,10.0.0.0/8,proxy
   - MATCH,direct
 
