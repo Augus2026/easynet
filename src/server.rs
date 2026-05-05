@@ -22,7 +22,7 @@ struct Client {
 }
 
 lazy_static! {
-    static ref NEXT_CLIENT_ID: AtomicU32 = AtomicU32::new(1);
+    static ref NEXT_CLIENT_ID: AtomicU32 = AtomicU32::new(2);
     static ref SESSIONS: Mutex<HashMap<String, Client>> = Mutex::new(HashMap::new());
 }
 
