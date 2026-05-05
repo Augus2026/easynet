@@ -9,10 +9,6 @@ pub struct Matcher;
 
 impl Matcher {
     pub fn matches(rule: &Rule, packet: &PacketContext, geoip: &GeoIpMatcher) -> bool {
-        if !rule.enabled {
-            return false;
-        }
-
         if let Some(ref src_ip) = rule.src_ip_cidr {
             if !Self::matches_ip(src_ip, packet.src_ip) {
                 return false;

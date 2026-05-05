@@ -73,18 +73,20 @@ impl RulesConfig {
 
     pub fn validate(&self) -> Result<(), ConfigError> {
         for (index, rule) in self.rules.iter().enumerate() {
+            let rule_label = format!("rule at index {}", index);
+
             if !rule.has_conditions() {
                 return Err(ConfigError::ValidationError(format!(
-                    "rule '{}' (index {}) has no match conditions",
-                    rule.name, index
+                    "{} has no match conditions",
+                    rule_label
                 )));
             }
 
             if let Some(ref cidr) = rule.src_ip_cidr {
                 if let Err(e) = cidr.parse::<ipnetwork::Ipv4Network>() {
                     return Err(ConfigError::InvalidCidr(format!(
-                        "rule '{}' has an invalid SRC-IP-CIDR: {} ({})",
-                        rule.name, cidr, e
+                        "{} has an invalid SRC-IP-CIDR: {} ({})",
+                        rule_label, cidr, e
                     )));
                 }
             }
@@ -92,8 +94,8 @@ impl RulesConfig {
             if let Some(ref cidr) = rule.dst_ip_cidr {
                 if let Err(e) = cidr.parse::<ipnetwork::Ipv4Network>() {
                     return Err(ConfigError::InvalidCidr(format!(
-                        "rule '{}' has an invalid DST-IP-CIDR: {} ({})",
-                        rule.name, cidr, e
+                        "{} has an invalid DST-IP-CIDR: {} ({})",
+                        rule_label, cidr, e
                     )));
                 }
             }
@@ -101,8 +103,8 @@ impl RulesConfig {
             if let Some(ref port) = rule.src_port {
                 if let Err(e) = parse_port_range(port) {
                     return Err(ConfigError::InvalidPortRange(format!(
-                        "rule '{}' has an invalid SRC-PORT: {} ({})",
-                        rule.name, port, e
+                        "{} has an invalid SRC-PORT: {} ({})",
+                        rule_label, port, e
                     )));
                 }
             }
@@ -110,8 +112,8 @@ impl RulesConfig {
             if let Some(ref port) = rule.dst_port {
                 if let Err(e) = parse_port_range(port) {
                     return Err(ConfigError::InvalidPortRange(format!(
-                        "rule '{}' has an invalid DST-PORT: {} ({})",
-                        rule.name, port, e
+                        "{} has an invalid DST-PORT: {} ({})",
+                        rule_label, port, e
                     )));
                 }
             }
@@ -119,8 +121,8 @@ impl RulesConfig {
             if let Some(ref proto) = rule.proto {
                 if Protocol::from_str(proto).is_none() {
                     return Err(ConfigError::ValidationError(format!(
-                        "rule '{}' has an invalid PROTO: {} (must be tcp/udp/icmp)",
-                        rule.name, proto
+                        "{} has an invalid PROTO: {} (must be tcp/udp/icmp)",
+                        rule_label, proto
                     )));
                 }
             }
@@ -131,27 +133,16 @@ impl RulesConfig {
                 ("DOMAIN-KEYWORD", rule.domain_keyword.as_ref()),
             ] {
                 if let Some(value) = value {
-                    validate_domain_rule_value(&rule.name, field, value)?;
+                    validate_domain_rule_value(&rule_label, field, value)?;
                 }
             }
 
             if let Some(value) = &rule.geoip {
-                validate_geoip_rule_value(&rule.name, value)?;
+                validate_geoip_rule_value(&rule_label, value)?;
             }
         }
 
         Ok(())
-    }
-
-    pub fn assign_ids(mut self) -> Self {
-        let mut next_id = 1u32;
-        for rule in &mut self.rules {
-            if rule.id == 0 {
-                rule.id = next_id;
-            }
-            next_id += 1;
-        }
-        self
     }
 }
 
@@ -217,8 +208,7 @@ impl<'de> Deserialize<'de> for RulesConfig {
             {
                 let mut rules = Vec::new();
                 while let Some(raw_rule) = seq.next_element::<String>()? {
-                    let index = rules.len();
-                    let rule = Rule::parse_compact(index, &raw_rule).map_err(de::Error::custom)?;
+                    let rule = Rule::parse_compact(&raw_rule).map_err(de::Error::custom)?;
                     rules.push(rule);
                 }
 

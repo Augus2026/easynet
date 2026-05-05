@@ -1,5 +1,4 @@
 use easynet_rules::{DomainCache, PacketContext, RuleAction, RulesEngine};
-use log::debug;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub const TUN_MTU: usize = 1500;
@@ -12,7 +11,6 @@ async fn handle_packet_route(
     direct_proxy_tx: &tokio::sync::mpsc::Sender<Vec<u8>>,
 ) -> anyhow::Result<()> {
     let Some(packet_ctx) = PacketContext::from_ip_packet(&packet) else {
-        debug!("could not parse packet for rules, forwarding through tunnel");
         tun_tx
             .send(packet)
             .await
@@ -22,8 +20,7 @@ async fn handle_packet_route(
 
     let domains = domain_cache.lookup(packet_ctx.dst_ip);
     let packet_ctx = packet_ctx.with_domains(domains);
-    let decision = rules_engine.match_packet(&packet_ctx);
-    match decision.action {
+    match rules_engine.match_packet(&packet_ctx) {
         RuleAction::Direct => {
             direct_proxy_tx
                 .send(packet)

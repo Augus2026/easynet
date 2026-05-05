@@ -50,12 +50,6 @@ impl std::fmt::Display for Protocol {
 
 #[derive(Debug, Clone)]
 pub struct Rule {
-    pub name: String,
-
-    pub id: u32,
-
-    pub priority: u32,
-
     pub src_ip_cidr: Option<String>,
 
     pub dst_ip_cidr: Option<String>,
@@ -77,16 +71,11 @@ pub struct Rule {
     pub match_all: bool,
 
     pub action: RuleAction,
-
-    pub enabled: bool,
 }
 
 impl Rule {
-    pub fn new(name: impl Into<String>, action: RuleAction) -> Self {
+    pub fn new(action: RuleAction) -> Self {
         Self {
-            name: name.into(),
-            id: 0,
-            priority: 0,
             src_ip_cidr: None,
             dst_ip_cidr: None,
             src_port: None,
@@ -98,86 +87,83 @@ impl Rule {
             geoip: None,
             match_all: false,
             action,
-            enabled: true,
         }
     }
 
-    pub fn parse_compact(index: usize, value: &str) -> Result<Self, String> {
+    pub fn parse_compact(value: &str) -> Result<Self, String> {
         let parts: Vec<&str> = value.split(',').map(str::trim).collect();
         if parts.is_empty() || parts[0].is_empty() {
             return Err("rule is empty".to_string());
         }
 
         let field = parts[0].to_ascii_uppercase();
-        let mut rule = match field.as_str() {
+        let rule = match field.as_str() {
             "MATCH" => {
                 if parts.len() != 2 {
                     return Err("MATCH rule format must be MATCH,action".to_string());
                 }
                 let action = parse_action(parts[1])?;
-                let mut rule = Rule::new(format!("rule-{}-match", index + 1), action);
+                let mut rule = Rule::new(action);
                 rule.match_all = true;
                 rule
             }
             "SRC-IP-CIDR" | "SRC_ADDR" | "SRC-IP" => {
                 let (rule_value, action) = parse_field_rule_parts(&parts, &field)?;
-                let mut rule = Rule::new(format!("rule-{}-src-ip-cidr", index + 1), action);
+                let mut rule = Rule::new(action);
                 rule.src_ip_cidr = Some(rule_value);
                 rule
             }
             "DST-IP-CIDR" | "DST_ADDR" | "DST-IP" => {
                 let (rule_value, action) = parse_field_rule_parts(&parts, &field)?;
-                let mut rule = Rule::new(format!("rule-{}-dst-ip-cidr", index + 1), action);
+                let mut rule = Rule::new(action);
                 rule.dst_ip_cidr = Some(rule_value);
                 rule
             }
             "SRC-PORT" | "SRC_PORT" => {
                 let (rule_value, action) = parse_field_rule_parts(&parts, &field)?;
-                let mut rule = Rule::new(format!("rule-{}-src-port", index + 1), action);
+                let mut rule = Rule::new(action);
                 rule.src_port = Some(rule_value);
                 rule
             }
             "DST-PORT" | "DST_PORT" => {
                 let (rule_value, action) = parse_field_rule_parts(&parts, &field)?;
-                let mut rule = Rule::new(format!("rule-{}-dst-port", index + 1), action);
+                let mut rule = Rule::new(action);
                 rule.dst_port = Some(rule_value);
                 rule
             }
             "PROTO" => {
                 let (rule_value, action) = parse_field_rule_parts(&parts, &field)?;
-                let mut rule = Rule::new(format!("rule-{}-proto", index + 1), action);
+                let mut rule = Rule::new(action);
                 rule.proto = Some(rule_value);
                 rule
             }
             "DOMAIN" => {
                 let (rule_value, action) = parse_domain_rule_parts(&parts, &field)?;
-                let mut rule = Rule::new(format!("rule-{}-domain", index + 1), action);
+                let mut rule = Rule::new(action);
                 rule.domain = Some(rule_value);
                 rule
             }
             "DOMAIN-SUFFIX" => {
                 let (rule_value, action) = parse_domain_rule_parts(&parts, &field)?;
-                let mut rule = Rule::new(format!("rule-{}-domain-suffix", index + 1), action);
+                let mut rule = Rule::new(action);
                 rule.domain_suffix = Some(rule_value);
                 rule
             }
             "DOMAIN-KEYWORD" => {
                 let (rule_value, action) = parse_domain_rule_parts(&parts, &field)?;
-                let mut rule = Rule::new(format!("rule-{}-domain-keyword", index + 1), action);
+                let mut rule = Rule::new(action);
                 rule.domain_keyword = Some(rule_value);
                 rule
             }
             "GEOIP" => {
                 let (rule_value, action) = parse_geoip_rule_parts(&parts, &field)?;
-                let mut rule = Rule::new(format!("rule-{}-geoip", index + 1), action);
+                let mut rule = Rule::new(action);
                 rule.geoip = Some(rule_value);
                 rule
             }
             _ => return Err(format!("unknown rule field '{}'", parts[0])),
         };
 
-        rule.id = (index + 1) as u32;
-        rule.priority = u32::MAX - index as u32;
         Ok(rule)
     }
 
@@ -192,21 +178,6 @@ impl Rule {
             || self.domain_suffix.is_some()
             || self.domain_keyword.is_some()
             || self.geoip.is_some()
-    }
-
-    pub fn with_id(mut self, id: u32) -> Self {
-        self.id = id;
-        self
-    }
-
-    pub fn with_priority(mut self, priority: u32) -> Self {
-        self.priority = priority;
-        self
-    }
-
-    pub fn with_enabled(mut self, enabled: bool) -> Self {
-        self.enabled = enabled;
-        self
     }
 }
 
@@ -228,7 +199,7 @@ impl<'de> Deserialize<'de> for Rule {
             where
                 E: de::Error,
             {
-                Rule::parse_compact(0, value).map_err(E::custom)
+                Rule::parse_compact(value).map_err(E::custom)
             }
         }
 
