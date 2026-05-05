@@ -3,6 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("cargo:rerun-if-changed=proto/message.proto");
     prost_build::compile_protos(&["proto/message.proto"], &["proto/"])?;
     copy_wintun_dll()?;
     Ok(())
@@ -19,7 +20,17 @@ fn copy_wintun_dll() -> Result<(), Box<dyn std::error::Error>> {
     let wintun_dll = find_wintun_dll(&version, arch)?;
     let output_dir = build_output_dir()?;
 
-    fs::copy(&wintun_dll, output_dir.join("wintun.dll"))?;
+    let output_wintun_dll = output_dir.join("wintun.dll");
+    if let Err(e) = fs::copy(&wintun_dll, &output_wintun_dll) {
+        if output_wintun_dll.exists() {
+            println!(
+                "cargo:warning=skipping wintun.dll copy because target is in use: {}",
+                e
+            );
+        } else {
+            return Err(e.into());
+        }
+    }
     println!("cargo:rerun-if-changed=Cargo.lock");
     Ok(())
 }
@@ -71,16 +82,17 @@ fn find_wintun_dll(version: &str, arch: &str) -> Result<PathBuf, Box<dyn std::er
 
     for registry in fs::read_dir(&registry_src)? {
         let crate_dir = registry?.path().join(&crate_dir_name);
-        let dll = crate_dir.join("wintun").join("bin").join(arch).join("wintun.dll");
+        let dll = crate_dir
+            .join("wintun")
+            .join("bin")
+            .join(arch)
+            .join("wintun.dll");
         if dll.exists() {
             return Ok(dll);
         }
     }
 
-    Err(format!(
-        "wintun.dll not found for wintun-bindings {version} and arch {arch}"
-    )
-    .into())
+    Err(format!("wintun.dll not found for wintun-bindings {version} and arch {arch}").into())
 }
 
 fn build_output_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {

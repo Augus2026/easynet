@@ -6,8 +6,9 @@ message TunConfig {
   string name = 1;
   string address = 2;
   string netmask = 3;
-  repeated string dns = 4;
-  uint32 mtu = 5;
+  string destination = 4;
+  repeated string dns = 5;
+  uint32 mtu = 6;
 }
 
 message Handshake {

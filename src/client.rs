@@ -58,6 +58,7 @@ async fn handshake_async(
                                     name: tun_config.name,
                                     address: tun_config.address,
                                     netmask: tun_config.netmask,
+                                    destination: tun_config.destination,
                                     dns: tun_config.dns,
                                     mtu: tun_config.mtu,
                                 };
@@ -107,7 +108,7 @@ pub async fn run_client_from_config(app_config: AppConfig) -> Result<()> {
                 &tun_config.name,
                 tun_config.address.parse()?,
                 tun_config.netmask.parse()?,
-                std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
+                tun_config.destination.parse()?,
                 &tun_config
                     .dns
                     .iter()
@@ -139,7 +140,7 @@ pub async fn run_client_from_config(app_config: AppConfig) -> Result<()> {
                 &tun_config.name,
                 tun_config.address.parse()?,
                 tun_config.netmask.parse()?,
-                std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
+                tun_config.destination.parse()?,
                 &tun_config
                     .dns
                     .iter()
@@ -174,7 +175,7 @@ pub async fn run_client_from_config(app_config: AppConfig) -> Result<()> {
                 &tun_config.name,
                 tun_config.address.parse()?,
                 tun_config.netmask.parse()?,
-                std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
+                tun_config.destination.parse()?,
                 &tun_config
                     .dns
                     .iter()
@@ -209,7 +210,7 @@ pub async fn run_client_from_config(app_config: AppConfig) -> Result<()> {
                 &tun_config.name,
                 tun_config.address.parse()?,
                 tun_config.netmask.parse()?,
-                std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
+                tun_config.destination.parse()?,
                 &tun_config
                     .dns
                     .iter()

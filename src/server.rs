@@ -76,7 +76,14 @@ pub(crate) async fn handle_handshake(
     provided_session_id: Option<String>,
     provided_token: Option<String>,
 ) {
-    let server_token = ServerConfig::load().unwrap().token.clone();
+    let server_config = match ServerConfig::load() {
+        Ok(config) => config,
+        Err(e) => {
+            error!("Failed to load server config: {}", e);
+            return;
+        }
+    };
+    let server_token = server_config.token.clone();
     let session_id: String;
     let virtual_ip: Ipv4Addr;
     let tun_config: TunConfig;
@@ -119,13 +126,7 @@ pub(crate) async fn handle_handshake(
             session_id = build_session_id();
             let client_id = NEXT_CLIENT_ID.fetch_add(1, Ordering::SeqCst);
             virtual_ip = Ipv4Addr::new(10, 0, 0, client_id as u8);
-            tun_config = TunConfig {
-                name: format!("tun{}", client_id),
-                address: virtual_ip.to_string(),
-                netmask: "255.255.255.0".to_string(),
-                dns: vec!["114.114.114.114".to_string(), "8.8.8.8".to_string()],
-                mtu: 1400,
-            };
+            tun_config = build_tun_config(&server_config);
             info!(
                 "Client {} created new session with session_id: {}, IP: {}",
                 client_id, session_id, virtual_ip
@@ -135,13 +136,7 @@ pub(crate) async fn handle_handshake(
         session_id = build_session_id();
         let client_id = NEXT_CLIENT_ID.fetch_add(1, Ordering::SeqCst);
         virtual_ip = Ipv4Addr::new(10, 0, 0, client_id as u8);
-        tun_config = TunConfig {
-            name: format!("tun{}", client_id),
-            address: virtual_ip.to_string(),
-            netmask: "255.255.255.0".to_string(),
-            dns: vec!["114.114.114.114".to_string(), "8.8.8.8".to_string()],
-            mtu: 1400,
-        };
+        tun_config = build_tun_config(&server_config);
         info!(
             "Client {} created new session with session_id: {}, IP: {}",
             client_id, session_id, virtual_ip
@@ -229,9 +224,9 @@ pub async fn run_server_from_config(app_config: AppConfig) -> Result<()> {
         &config.tun_name,
         config.tun_addr,
         config.tun_netmask,
-        std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
-        &[],
-        config.mtu as u16,
+        config.tun_destination,
+        &config.tun_dns_servers,
+        config.tun_mtu as u16,
     )?;
 
     match config.transport_type.to_lowercase().as_str() {
@@ -265,6 +260,21 @@ pub async fn run_server() -> Result<()> {
     let config = AppConfig::load()?;
     info!("Server configuration: {:?}", config.server);
     run_server_from_config(config).await
+}
+
+fn build_tun_config(config: &ServerConfig) -> TunConfig {
+    TunConfig {
+        name: config.tun_name.clone(),
+        address: config.tun_addr.to_string(),
+        netmask: config.tun_netmask.to_string(),
+        destination: config.tun_destination.to_string(),
+        dns: config
+            .tun_dns_servers
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
+        mtu: config.tun_mtu as u32,
+    }
 }
 
 async fn cleanup_expired_sessions() {

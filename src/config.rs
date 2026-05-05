@@ -318,7 +318,10 @@ pub struct ServerConfig {
     pub tun_name: String,
     pub tun_addr: IpAddr,
     pub tun_netmask: IpAddr,
-    pub mtu: usize,
+    pub tun_destination: IpAddr,
+    #[serde(default, deserialize_with = "deserialize_tun_dns_servers")]
+    pub tun_dns_servers: Vec<IpAddr>,
+    pub tun_mtu: usize,
     pub cert_path: String,
     pub key_path: String,
     pub token: String,
@@ -332,12 +335,67 @@ impl Default for ServerConfig {
             tun_name: "tun0".to_string(),
             tun_addr: IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1)),
             tun_netmask: IpAddr::V4(Ipv4Addr::new(255, 255, 255, 0)),
-            mtu: 1500,
+            tun_destination: IpAddr::V4(Ipv4Addr::new(10, 0, 0, 0)),
+            tun_dns_servers: vec![
+                IpAddr::V4(Ipv4Addr::new(114, 114, 114, 114)),
+                IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)),
+            ],
+            tun_mtu: 1400,
             cert_path: "certs/server-cert.pem".to_string(),
             key_path: "certs/server-key.pem".to_string(),
             token: String::new(),
         }
     }
+}
+
+fn deserialize_tun_dns_servers<'de, D>(deserializer: D) -> Result<Vec<IpAddr>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct TunDnsServersVisitor;
+
+    impl<'de> de::Visitor<'de> for TunDnsServersVisitor {
+        type Value = Vec<IpAddr>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("a comma-separated DNS server string or a list of DNS server IPs")
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            parse_dns_servers(value.split(',')).map_err(E::custom)
+        }
+
+        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+        where
+            A: de::SeqAccess<'de>,
+        {
+            let mut dns_servers = Vec::new();
+            while let Some(value) = seq.next_element::<String>()? {
+                let value = value.trim();
+                if !value.is_empty() {
+                    dns_servers.push(value.parse::<IpAddr>().map_err(de::Error::custom)?);
+                }
+            }
+            Ok(dns_servers)
+        }
+    }
+
+    deserializer.deserialize_any(TunDnsServersVisitor)
+}
+
+fn parse_dns_servers<'a, I>(values: I) -> Result<Vec<IpAddr>, std::net::AddrParseError>
+where
+    I: IntoIterator<Item = &'a str>,
+{
+    values
+        .into_iter()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::parse)
+        .collect()
 }
 
 impl ServerConfig {
