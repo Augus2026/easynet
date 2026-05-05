@@ -30,7 +30,7 @@ rule_sets:
 
 transparent_proxy:
   interface: "以太网"
-  smoltcp_addr: 10.0.0.2
+  smoltcp_addr: 0.0.0.2
   smoltcp_netmask: 255.255.255.0
-  smoltcp_gateway: 10.0.0.1
+  smoltcp_gateway: 0.0.0.1
   upstream_server: null

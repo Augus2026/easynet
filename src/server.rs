@@ -6,7 +6,7 @@ use anyhow::Result;
 use lazy_static::lazy_static;
 use log::{error, info, warn};
 use nanoid;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, SystemTime};
 use std::{collections::HashMap, net::Ipv4Addr};
@@ -124,23 +124,15 @@ pub(crate) async fn handle_handshake(
             );
         } else {
             session_id = build_session_id();
-            let client_id = NEXT_CLIENT_ID.fetch_add(1, Ordering::SeqCst);
-            virtual_ip = Ipv4Addr::new(10, 0, 0, client_id as u8);
-            tun_config = build_tun_config(&server_config);
-            info!(
-                "Client {} created new session with session_id: {}, IP: {}",
-                client_id, session_id, virtual_ip
-            );
+            virtual_ip = allocate_virtual_ip();
+            tun_config = build_tun_config(&server_config, virtual_ip);
+            info!("allocated new session with session_id: {}, IP: {}", session_id, virtual_ip);
         }
     } else {
         session_id = build_session_id();
-        let client_id = NEXT_CLIENT_ID.fetch_add(1, Ordering::SeqCst);
-        virtual_ip = Ipv4Addr::new(10, 0, 0, client_id as u8);
-        tun_config = build_tun_config(&server_config);
-        info!(
-            "Client {} created new session with session_id: {}, IP: {}",
-            client_id, session_id, virtual_ip
-        );
+        virtual_ip = allocate_virtual_ip();
+        tun_config = build_tun_config(&server_config, virtual_ip);
+        info!("new session with session_id: {}, IP: {}", session_id, virtual_ip);
     }
 
     let message = Message::handshake(Handshake {
@@ -262,10 +254,10 @@ pub async fn run_server() -> Result<()> {
     run_server_from_config(config).await
 }
 
-fn build_tun_config(config: &ServerConfig) -> TunConfig {
+fn build_tun_config(config: &ServerConfig, virtual_ip: Ipv4Addr) -> TunConfig {
     TunConfig {
         name: config.tun_name.clone(),
-        address: config.tun_addr.to_string(),
+        address: virtual_ip.to_string(),
         netmask: config.tun_netmask.to_string(),
         destination: config.tun_destination.to_string(),
         dns: config
@@ -275,6 +267,12 @@ fn build_tun_config(config: &ServerConfig) -> TunConfig {
             .collect(),
         mtu: config.tun_mtu as u32,
     }
+}
+
+fn allocate_virtual_ip() -> Ipv4Addr {
+    let client_id = NEXT_CLIENT_ID.fetch_add(1, Ordering::SeqCst);
+    let virtual_ip = Ipv4Addr::new(10, 0, 0, client_id as u8);
+    virtual_ip
 }
 
 async fn cleanup_expired_sessions() {
