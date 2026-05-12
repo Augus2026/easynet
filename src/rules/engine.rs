@@ -72,9 +72,9 @@ mod tests {
         RulesEngine::from_config(
             RulesConfig::from_yaml(
                 r#"
-  - DST_PORT,22,reject
-  - DST_ADDR,10.0.0.0/8,proxy
-  - DST_PORT,443,proxy
+  - DST-PORT,22,reject
+  - DST-IP-CIDR,10.0.0.0/8,proxy
+  - DST-PORT,443,proxy
   - MATCH,direct
 "#,
             )

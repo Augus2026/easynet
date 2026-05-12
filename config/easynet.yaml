@@ -22,8 +22,9 @@ server:
   token: admin
 
 rules:
-  - DST_ADDR,10.0.0.0/8,proxy
-  - MATCH,direct
+  - DST-IP-CIDR,10.0.0.0/8,proxy
+  - GEOIP,CN,direct
+  - MATCH,proxy
 
 rule_sets:
   geoip_path: rules/geoip/GeoLite2-Country.mmdb

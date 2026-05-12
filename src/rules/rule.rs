@@ -107,25 +107,25 @@ impl Rule {
                 rule.match_all = true;
                 rule
             }
-            "SRC-IP-CIDR" | "SRC_ADDR" | "SRC-IP" => {
+            "SRC-IP-CIDR" => {
                 let (rule_value, action) = parse_field_rule_parts(&parts, &field)?;
                 let mut rule = Rule::new(action);
                 rule.src_ip_cidr = Some(rule_value);
                 rule
             }
-            "DST-IP-CIDR" | "DST_ADDR" | "DST-IP" => {
+            "DST-IP-CIDR" => {
                 let (rule_value, action) = parse_field_rule_parts(&parts, &field)?;
                 let mut rule = Rule::new(action);
                 rule.dst_ip_cidr = Some(rule_value);
                 rule
             }
-            "SRC-PORT" | "SRC_PORT" => {
+            "SRC-PORT" => {
                 let (rule_value, action) = parse_field_rule_parts(&parts, &field)?;
                 let mut rule = Rule::new(action);
                 rule.src_port = Some(rule_value);
                 rule
             }
-            "DST-PORT" | "DST_PORT" => {
+            "DST-PORT" => {
                 let (rule_value, action) = parse_field_rule_parts(&parts, &field)?;
                 let mut rule = Rule::new(action);
                 rule.dst_port = Some(rule_value);

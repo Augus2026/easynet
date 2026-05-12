@@ -26,11 +26,13 @@ pub fn create_tun_device(
 
     let device = create_as_async(&config)?;
     info!(
-        "TUN device created: {} -> {} destination={} dns_count={}",
+        "TUN device created: name={} address={} netmask={} destination={} dns_servers={:?} mtu={}",
         name,
         address,
+        netmask,
         destination,
-        dns_servers.len()
+        dns_servers,
+        mtu
     );
     Ok(device)
 }
