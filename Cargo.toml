@@ -40,6 +40,7 @@ native-tls = "0.2"
 prost = "0.14"
 nanoid = "0.5"
 lazy_static = "1.4"
+rand = "0.8"
 smoltcp = { git = "https://github.com/Augus2026/smoltcp.git", branch = "transparent_proxy", default-features = false, features = [
     "std",
     "async",
