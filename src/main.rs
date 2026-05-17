@@ -1,15 +1,14 @@
 mod client;
 mod codec;
 mod common;
+mod config;
 mod server;
-mod transparent_proxy;
 mod transport;
 mod tun_device;
 
 use anyhow::Result;
-use config::AppConfig;
+use crate::config::AppConfig;
 use log::info;
-pub use easynet_rules::config;
 
 #[tokio::main]
 async fn main() -> Result<()> {

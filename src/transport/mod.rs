@@ -7,11 +7,9 @@ pub mod ws;
 
 use crate::codec::{Data, KeepAlive, Message, MessageType};
 use crate::common::tun_io_task;
-use crate::config::{ClientConfig, TransparentProxyConfig};
-use crate::transparent_proxy::start_transparent_proxy;
+use crate::config::ClientConfig;
 use anyhow::Result;
 use log::info;
-use easynet_rules::RulesEngine;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::time::interval;
@@ -98,8 +96,6 @@ where
 
 pub(crate) async fn run_connected_client<T>(
     config: ClientConfig,
-    rules_config: easynet_rules::RulesConfig,
-    transparent_proxy_config: TransparentProxyConfig,
     tun: tun2::AsyncDevice,
     transport: T,
 ) -> Result<()>
@@ -108,31 +104,9 @@ where
 {
     let (tun_tx, tun_rx) = mpsc::channel::<Vec<u8>>(4096);
     let (transport_tx, transport_rx) = mpsc::channel::<Vec<u8>>(4096);
-    let (direct_proxy_tx, direct_proxy_rx_in) = mpsc::channel::<Vec<u8>>(4096);
-    let (direct_proxy_tx_out, direct_proxy_rx) = mpsc::channel::<Vec<u8>>(4096);
     let server_addr = config.server_addr;
 
-    let rules_engine = RulesEngine::from_config(rules_config)
-        .map_err(|e| anyhow::anyhow!("Failed to load rules: {}", e))?;
-
-    let direct_proxy_task = start_transparent_proxy(
-        transparent_proxy_config.interface.clone(),
-        transparent_proxy_config.upstream_server,
-        direct_proxy_rx_in,
-        direct_proxy_tx_out,
-        transparent_proxy_config.smoltcp_addr,
-        transparent_proxy_config.smoltcp_netmask,
-        transparent_proxy_config.smoltcp_gateway,
-    );
-
-    let tun_handle = tokio::spawn(tun_io_task(
-        tun,
-        tun_tx,
-        transport_rx,
-        rules_engine,
-        direct_proxy_tx,
-        direct_proxy_rx,
-    ));
+    let tun_handle = tokio::spawn(tun_io_task(tun, tun_tx, transport_rx));
     let transport_handle = tokio::spawn(client_transport_io_task(
         transport,
         server_addr,
@@ -141,7 +115,6 @@ where
     ));
 
     tokio::select! {
-        _ = direct_proxy_task => {},
         result = tun_handle => {
             match result {
                 Ok(Ok(())) => info!("TUN task completed successfully"),

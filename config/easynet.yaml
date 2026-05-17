@@ -20,18 +20,3 @@ server:
   cert_path: certs/server-cert.pem
   key_path: certs/server-key.pem
   token: admin
-
-rules:
-  - DST-IP-CIDR,10.0.0.0/8,proxy
-  - GEOIP,CN,direct
-  - MATCH,proxy
-
-rule_sets:
-  geoip_path: rules/geoip/GeoLite2-Country.mmdb
-
-transparent_proxy:
-  interface: "以太网"
-  smoltcp_addr: 0.0.0.2
-  smoltcp_netmask: 255.255.255.0
-  smoltcp_gateway: 0.0.0.1
-  upstream_server: null

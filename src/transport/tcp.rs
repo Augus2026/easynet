@@ -1,15 +1,13 @@
 use crate::codec::{ByteCodec, Data, Message, MessageType};
 use crate::common::tun_io_task;
-use crate::config::{ClientConfig, ServerConfig, TransparentProxyConfig};
+use crate::config::{ClientConfig, ServerConfig};
 use crate::server::{
     handle_data, handle_disconnect, handle_handshake, handle_keepalive, handle_tun_packet,
 };
-use crate::transparent_proxy::start_transparent_proxy;
 use crate::transport::{run_connected_client, TransportTrait};
 use anyhow::Result;
 use futures::{SinkExt, StreamExt};
 use log::{error, info, warn};
-use easynet_rules::RulesEngine;
 use socket2::Socket;
 use std::io;
 use std::net::SocketAddr;
@@ -86,19 +84,10 @@ impl TransportTrait for TcpTransport {
 
 pub async fn run_tcp_client(
     config: ClientConfig,
-    rules_config: easynet_rules::RulesConfig,
-    transparent_proxy_config: TransparentProxyConfig,
     tun: tun2::AsyncDevice,
     transport: TcpTransport,
 ) -> Result<()> {
-    run_connected_client(
-        config,
-        rules_config,
-        transparent_proxy_config,
-        tun,
-        transport,
-    )
-    .await
+    run_connected_client(config, tun, transport).await
 }
 
 async fn handle_tcp_connection(
@@ -198,35 +187,12 @@ pub async fn transport_io_task(
 
 pub async fn run_tcp_server(
     config: ServerConfig,
-    rules_config: easynet_rules::RulesConfig,
-    transparent_proxy_config: TransparentProxyConfig,
     tun: tun2::AsyncDevice,
 ) -> Result<()> {
     let (tun_tx, mut tun_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(4096);
     let (transport_tx, transport_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(4096);
-    let (direct_proxy_tx, direct_proxy_rx_in) = tokio::sync::mpsc::channel::<Vec<u8>>(4096);
-    let (direct_proxy_tx_out, direct_proxy_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(4096);
 
-    let rules_engine = RulesEngine::from_config(rules_config)
-        .map_err(|e| anyhow::anyhow!("Failed to load rules: {}", e))?;
-
-    let direct_proxy_task = start_transparent_proxy(
-        transparent_proxy_config.interface.clone(),
-        transparent_proxy_config.upstream_server,
-        direct_proxy_rx_in,
-        direct_proxy_tx_out,
-        transparent_proxy_config.smoltcp_addr,
-        transparent_proxy_config.smoltcp_netmask,
-        transparent_proxy_config.smoltcp_gateway,
-    );
-    let tun_handle = tokio::spawn(tun_io_task(
-        tun,
-        tun_tx,
-        transport_rx,
-        rules_engine,
-        direct_proxy_tx,
-        direct_proxy_rx,
-    ));
+    let tun_handle = tokio::spawn(tun_io_task(tun, tun_tx, transport_rx));
 
     tokio::spawn(async move {
         handle_tun_packet(&mut tun_rx).await;
@@ -235,7 +201,6 @@ pub async fn run_tcp_server(
     let transport_task = tokio::spawn(transport_io_task(config, transport_tx));
 
     tokio::select! {
-        _ = direct_proxy_task => {},
         _ = tun_handle => {},
         _ = transport_task => {},
     }

@@ -6,7 +6,7 @@ use anyhow::Result;
 use lazy_static::lazy_static;
 use log::{error, info, warn};
 use nanoid;
-use std::net::{IpAddr, SocketAddr};
+use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, SystemTime};
 use std::{collections::HashMap, net::Ipv4Addr};
@@ -210,8 +210,6 @@ pub(crate) async fn send_to_client(
 pub async fn run_server_from_config(app_config: AppConfig) -> Result<()> {
     tokio::spawn(cleanup_expired_sessions());
     let config = app_config.server.clone();
-    let rules_config = app_config.rules.clone();
-    let transparent_proxy_config = app_config.transparent_proxy.clone();
     let tun = create_tun_device(
         &config.tun_name,
         config.tun_addr,
@@ -224,19 +222,19 @@ pub async fn run_server_from_config(app_config: AppConfig) -> Result<()> {
     match config.transport_type.to_lowercase().as_str() {
         "tcp" => {
             info!("Using TCP transport");
-            run_tcp_server(config, rules_config, transparent_proxy_config, tun).await
+            run_tcp_server(config, tun).await
         }
         "udp" => {
             info!("Using UDP transport");
-            run_udp_server(config, rules_config, transparent_proxy_config, tun).await
+            run_udp_server(config, tun).await
         }
         "ws" => {
             info!("Using WebSocket transport");
-            run_ws_server(config, rules_config, transparent_proxy_config, tun).await
+            run_ws_server(config, tun).await
         }
         "wss" => {
             info!("Using WebSocket(Secure) transport");
-            run_ws_server(config, rules_config, transparent_proxy_config, tun).await
+            run_ws_server(config, tun).await
         }
         _ => {
             error!("Unknown transport type: {}", config.transport_type);

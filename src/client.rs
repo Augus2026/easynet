@@ -89,8 +89,6 @@ async fn handshake_async(
 
 pub async fn run_client_from_config(app_config: AppConfig) -> Result<()> {
     let mut config = app_config.client.clone();
-    let rules_config = app_config.rules.clone();
-    let transparent_proxy_config = app_config.transparent_proxy.clone();
     let server_addr = config.server_addr;
 
     match config.transport_type.to_lowercase().as_str() {
@@ -117,14 +115,7 @@ pub async fn run_client_from_config(app_config: AppConfig) -> Result<()> {
                 tun_config.mtu as u16,
             )?;
 
-            run_tcp_client(
-                config,
-                rules_config,
-                transparent_proxy_config,
-                tun_device,
-                transport,
-            )
-            .await?;
+            run_tcp_client(config, tun_device, transport).await?;
         }
         "udp" => {
             info!("Using UDP transport");
@@ -149,14 +140,7 @@ pub async fn run_client_from_config(app_config: AppConfig) -> Result<()> {
                 tun_config.mtu as u16,
             )?;
 
-            run_udp_client(
-                config,
-                rules_config,
-                transparent_proxy_config,
-                tun_device,
-                transport,
-            )
-            .await?;
+            run_udp_client(config, tun_device, transport).await?;
         }
         "ws" => {
             info!("Using WebSocket transport");
@@ -184,14 +168,7 @@ pub async fn run_client_from_config(app_config: AppConfig) -> Result<()> {
                 tun_config.mtu as u16,
             )?;
 
-            run_ws_client(
-                config,
-                rules_config,
-                transparent_proxy_config,
-                tun_device,
-                transport,
-            )
-            .await?;
+            run_ws_client(config, tun_device, transport).await?;
         }
         "wss" => {
             info!("Using WebSocket(Secure) transport");
@@ -219,14 +196,7 @@ pub async fn run_client_from_config(app_config: AppConfig) -> Result<()> {
                 tun_config.mtu as u16,
             )?;
 
-            run_ws_client(
-                config,
-                rules_config,
-                transparent_proxy_config,
-                tun_device,
-                transport,
-            )
-            .await?;
+            run_ws_client(config, tun_device, transport).await?;
         }
         _ => {
             error!("Unknown transport type: {}", config.transport_type);
