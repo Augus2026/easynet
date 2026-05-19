@@ -31,6 +31,7 @@ native-tls = "0.2"
 prost = "0.14"
 nanoid = "0.5"
 lazy_static = "1.4"
+iroh = "1.0.0-rc.0"
 
 [build-dependencies]
 prost-build = "0.14"

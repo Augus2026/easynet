@@ -1,8 +1,8 @@
 use crate::codec::{Handshake, Message, MessageType, TunConfig};
 use crate::config::{load_client_state, save_client_state, AppConfig, ClientConfig};
 use crate::transport::{
-    run_tcp_client, run_udp_client, run_ws_client, TcpTransport, TransportTrait, UdpTransport,
-    WsTransport,
+    run_connected_client, run_tcp_client, run_udp_client, run_ws_client, IrohTransport,
+    TcpTransport, TransportTrait, UdpTransport, WsTransport,
 };
 use crate::tun_device::create_tun_device;
 use anyhow::Result;
@@ -197,6 +197,40 @@ pub async fn run_client_from_config(app_config: AppConfig) -> Result<()> {
             )?;
 
             run_ws_client(config, tun_device, transport).await?;
+        }
+        "iroh" => {
+            info!("Using iroh transport");
+
+            if config.server_node_id.is_empty() {
+                return Err(anyhow::anyhow!(
+                    "iroh transport requires client.server_node_id to be set"
+                ));
+            }
+
+            let server_node_id = config.server_node_id.clone();
+            let (mut transport, _endpoint) =
+                IrohTransport::connect(&server_node_id).await?;
+            let peer_addr = transport.peer_addr();
+            let tun_config = handshake_async(&mut transport, peer_addr, &mut config).await?;
+
+            info!(
+                "Creating TUN device with server config: {}",
+                tun_config.name
+            );
+            let tun_device = create_tun_device(
+                &tun_config.name,
+                tun_config.address.parse()?,
+                tun_config.netmask.parse()?,
+                tun_config.destination.parse()?,
+                &tun_config
+                    .dns
+                    .iter()
+                    .map(|dns| dns.parse())
+                    .collect::<Result<Vec<std::net::IpAddr>, _>>()?,
+                tun_config.mtu as u16,
+            )?;
+
+            run_connected_client(config, tun_device, transport).await?;
         }
         _ => {
             error!("Unknown transport type: {}", config.transport_type);

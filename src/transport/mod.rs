@@ -1,5 +1,6 @@
 //! Transport module for TCP, UDP, and WebSocket communication
 
+pub mod iroh;
 pub mod tcp;
 pub mod transport;
 pub mod udp;
@@ -14,6 +15,7 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::time::interval;
 
+pub use iroh::{run_iroh_server, IrohTransport};
 pub use tcp::{run_tcp_client, run_tcp_server, TcpTransport};
 pub use transport::TransportTrait;
 pub use udp::{run_udp_client, run_udp_server, UdpTransport};

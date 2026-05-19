@@ -1,6 +1,6 @@
 use crate::codec::{Data, Handshake, KeepAlive, Message, TunConfig};
 use crate::config::{AppConfig, ServerConfig};
-use crate::transport::{run_tcp_server, run_udp_server, run_ws_server, TransportTrait};
+use crate::transport::{run_iroh_server, run_tcp_server, run_udp_server, run_ws_server, TransportTrait};
 use crate::tun_device::create_tun_device;
 use anyhow::Result;
 use lazy_static::lazy_static;
@@ -235,6 +235,10 @@ pub async fn run_server_from_config(app_config: AppConfig) -> Result<()> {
         "wss" => {
             info!("Using WebSocket(Secure) transport");
             run_ws_server(config, tun).await
+        }
+        "iroh" => {
+            info!("Using iroh transport");
+            run_iroh_server(config, tun).await
         }
         _ => {
             error!("Unknown transport type: {}", config.transport_type);

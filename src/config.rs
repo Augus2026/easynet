@@ -25,6 +25,8 @@ pub struct ClientConfig {
     pub transport_type: String,
     pub server_addr: SocketAddr,
     pub ca_cert_path: String,
+    #[serde(default)]
+    pub server_node_id: String,
     #[serde(default, skip_serializing)]
     pub session_id: String,
     pub token: String,
@@ -36,6 +38,7 @@ impl Default for ClientConfig {
             transport_type: "udp".to_string(),
             server_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12345),
             ca_cert_path: "certs/ca-cert.pem".to_string(),
+            server_node_id: String::new(),
             session_id: String::new(),
             token: String::new(),
         }
